@@ -211,11 +211,7 @@ try {
 }
 catch {
     Write-Host "Error: $_"
-    foreach ($key in $createdResources.Keys) {
-        if ($createdResources[$key] -eq $true) {
-            Write-Host "$key will need to be deleted to re-run this script"
-        }
-    }
+    OutputResources
     exit
 }
 
@@ -234,11 +230,7 @@ try {
 }
 catch {
     Write-Host "Error: $_"
-    foreach ($key in $createdResources.Keys) {
-        if ($createdResources[$key] -eq $true) {
-            Write-Host "$key will need to be deleted to re-run this script"
-        }
-    }
+    OutputResources
     exit
 }
 
