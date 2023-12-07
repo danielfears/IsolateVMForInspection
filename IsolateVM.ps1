@@ -29,16 +29,38 @@ $createdResources = @{
     "Isolation-Bastion" = $false
 }
 
+# Function to iterate through the hashtable to output report of created resources
+
+function OutputResources {
+    
+    $checkAllTrue = $createdResources.Values -contains $false -eq $false # Check if all resources are created and createdResources hash table values set to true
+
+    foreach ($key in $createdResources.Keys) {
+        if ($createdResources[$key] -eq $true) {
+            $outputMessage = "* $key"
+            if (!$checkAllTrue) {
+                $outputMessage += " will need to be deleted to re-run this script"
+            }
+            Write-Host $outputMessage
+        }
+    }
+}
+
 # Authenticate Azure Account and login
 
 $context = Get-AzContext
-
 if (!$context) {  
     Connect-AzAccount
-}   else {
-    Write-Host " Already logged in and authenticated"
+    $context = Get-AzContext
+    if ($context) {
+        Write-Host "Successfully logged in. Context set to subscription: $($context.Subscription)"
+    } else {
+        Write-Host "Failed to log in. Please check your credentials."
+        exit
+    }
+} else {
+    Write-Host "Already logged in and authenticated. Context set to subscription: $($context.Subscription)"
 }
-
 
 # Accept input from user for Subscription ID
 # Validate and set the subscription ID
@@ -71,8 +93,6 @@ do {
     }
 } while ($true)
 
-
-
 # Accept input from user for Resource Group Name
 # Validate and set the Resource Group Name
 
@@ -100,7 +120,11 @@ do {
 # Accept input for VM name and check if it exists in the resource group
 # Validate and set the target Virtual Machine name
 
-$allVMs = Get-AzVM -ResourceGroupName $VMresourceGroupName
+$allVMs = Get-AzVM -ResourceGroupName $VMresourceGroupName -ErrorAction SilentlyContinue
+if ($null -eq $allVMs) {
+    Write-Host "No Virtual Machines found in the resource group '$VMresourceGroupName'."
+    exit
+}
 
 do {
     $vmName = Read-Host -Prompt "Enter Virtual Machine Name"
@@ -113,6 +137,7 @@ do {
         Write-Host "No VM with the name '$vmName' found in the resource group '$VMresourceGroupName'. Please try again."
     }
 } while ($true)
+
 
 try {
     $vm = Get-AzVM -Name $vmName -ResourceGroupName $VMresourceGroupName -ErrorAction Stop
@@ -229,11 +254,7 @@ try {
 }
 catch {
     Write-Host "Error: $_"
-    foreach ($key in $createdResources.Keys) {
-        if ($createdResources[$key] -eq $true) {
-            Write-Host "$key will need to be deleted to re-run this script"
-        }
-    }
+    OutputResources
     exit
 }
 
@@ -244,11 +265,7 @@ try {
 }
 catch {
     Write-Host "Error: $_"
-    foreach ($key in $createdResources.Keys) {
-        if ($createdResources[$key] -eq $true) {
-            Write-Host "$key will need to be deleted to re-run this script"
-        }
-    }
+    OutputResources
     exit
 }
 
@@ -266,11 +283,7 @@ try {
 }
 catch {
     Write-Host "Error: $_"
-    foreach ($key in $createdResources.Keys) {
-        if ($createdResources[$key] -eq $true) {
-            Write-Host "$key will need to be deleted to re-run this script"
-        }
-    }
+    OutputResources
     exit
 }
 
@@ -283,11 +296,7 @@ try {
 }
 catch {
     Write-Host "Error: $_"
-    foreach ($key in $createdResources.Keys) {
-        if ($createdResources[$key] -eq $true) {
-            Write-Host "$key will need to be deleted to re-run this script"
-        }
-    }
+    OutputResources
     exit
 }
 
@@ -296,12 +305,9 @@ $createdResources["Isolation-Bastion"] = $true
 Write-Host "Script completed successfully! The following resources have been created:"
 Write-Host " "
 
-# Iterate through the hashtable to output report of created resources
+#Running resource output function
 
-foreach ($key in $createdResources.Keys) {
-    if ($createdResources[$key] -eq $true) {
-        Write-Host "* $key"
-    }
-}
+OutputResources
+
 Write-Host " "
 Write-Host "VM: $vmName has been moved to the Isolation Subnet and is now ready for inspection."
