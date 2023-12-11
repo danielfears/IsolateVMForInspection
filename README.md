@@ -1,4 +1,4 @@
-# Azure VM Isolation PowerShell Script
+# Azure VM Isolation PowerShell Script [WIP]
 
 ## Description
 This PowerShell script automates the process of isolating a specific Azure Virtual Machine (VM) into a new subnet and setting up an Azure Bastion host for secure access. It is available in two versions: 
