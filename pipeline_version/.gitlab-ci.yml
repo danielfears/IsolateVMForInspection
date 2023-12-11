@@ -1,0 +1,73 @@
+default:
+  image: mcr.microsoft.com/powershell
+
+variables:
+  AZURE_SUBSCRIPTION_ID:
+    description: "Subscription ID of the Azure subscription to use for the deployment"
+    value: ""
+
+  RESOURCE_GROUP_NAME:
+    description: "Resource group name of the Azure resource group to use for the deployment"
+    value: ""
+
+  VM_NAME:
+    description: "VM name of the Azure VM to use for the deployment"
+    value: ""
+
+  ISOLATION_SUBNET_RANGE:
+    description: "Isolation subnet range to use for the deployment"
+    value: ""
+
+  BASTION_SUBNET_RANGE:
+    description: "Bastion subnet range to use for the deployment"
+    value: ""
+
+stages:
+  - login
+  - resource_validate
+  - ip_validate
+  - create_subnets
+  - create_and_associate_nsg
+  - create_bastion_pip
+  - isolate_vm
+  - create_bastion_host
+
+login:
+  stage: login
+  script:
+    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-UserLoginFunction -AzureTenantId $AZURE_TENANT_ID -AzureClientId $AZURE_CLIENT_ID -AzureClientSecret $AZURE_CLIENT_SECRET }"
+
+resource_validate:
+  stage: resource_validate
+  script:
+    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-ValidateUserInputs -subscriptionId $AZURE_SUBSCRIPTION_ID -VMresourceGroupName $RESOURCE_GROUP_NAME -vmName $VM_NAME }"
+
+ip_validate:
+  stage: ip_validate
+  script:
+    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-ValidateIPFormat -subnetRange $ISOLATION_SUBNET_RANGE -bastionSubnet $BASTION_SUBNET_RANGE }"
+
+create_subnets:
+  stage: create_subnets
+  script:
+    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CreateSubnets -VMresourceGroupName $RESOURCE_GROUP_NAME -subnetRange $ISOLATION_SUBNET_RANGE -bastionSubnet $BASTION_SUBNET_RANGE }"
+
+create_and_associate_nsg:
+  stage: create_and_associate_nsg
+  script:
+    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CreateAssociateNSG -VMresourceGroupName $RESOURCE_GROUP_NAME -subnetRange $ISOLATION_SUBNET_RANGE -bastionSubnet $BASTION_SUBNET_RANGE }"
+
+create_bastion_pip:
+  stage: create_bastion_pip
+  script:
+    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CreateBastionPIP -VMresourceGroupName $RESOURCE_GROUP_NAME }"
+
+isolate_vm:
+  stage: isolate_vm
+  script:
+    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-IsolateVM -vmName $VM_NAME -VMresourceGroupName $RESOURCE_GROUP_NAME }"
+
+create_bastion_host:
+  stage: create_bastion_host
+  script:
+    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CreateBastionHost -VMresourceGroupName $RESOURCE_GROUP_NAME }"
