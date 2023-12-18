@@ -23,51 +23,54 @@ variables:
     value: ""
 
 stages:
-  - login
   - resource_validate
-  - ip_validate
   - create_subnets
-  - create_and_associate_nsg
+  - create_nsg
+  - associate_nsg_to_subnet
   - create_bastion_pip
-  - isolate_vm
+  - move_vm_to_isolation_subnet
   - create_bastion_host
+  - completion_output
 
-login:
-  stage: login
-  script:
-    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-UserLoginFunction -AzureTenantId $AZURE_TENANT_ID -AzureClientId $AZURE_CLIENT_ID -AzureClientSecret $AZURE_CLIENT_SECRET }"
+before_script:
+  - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-UserLogin -AzureTenantId $AZURE_TENANT_ID -AzureClientId $AZURE_CLIENT_ID -AzureClientSecret $AZURE_CLIENT_SECRET -subscriptionId $AZURE_SUBSCRIPTION_ID -VMresourceGroupName $RESOURCE_GROUP_NAME -vmName $VM_NAME -subnetRange $ISOLATION_SUBNET_RANGE -bastionSubnet $BASTION_SUBNET_RANGE }"
 
 resource_validate:
   stage: resource_validate
   script:
-    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-ValidateUserInputs -subscriptionId $AZURE_SUBSCRIPTION_ID -VMresourceGroupName $RESOURCE_GROUP_NAME -vmName $VM_NAME }"
-
-ip_validate:
-  stage: ip_validate
-  script:
-    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-ValidateIPFormat -subnetRange $ISOLATION_SUBNET_RANGE -bastionSubnet $BASTION_SUBNET_RANGE }"
+    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-SubscriptionInput; Invoke-ResourceGroupInput; Invoke-VMNameInput }"
 
 create_subnets:
   stage: create_subnets
   script:
-    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CreateSubnets -VMresourceGroupName $RESOURCE_GROUP_NAME -subnetRange $ISOLATION_SUBNET_RANGE -bastionSubnet $BASTION_SUBNET_RANGE }"
+    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CreateSubnets }"
 
-create_and_associate_nsg:
-  stage: create_and_associate_nsg
+create_nsg:
+  stage: create_nsg
   script:
-    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CreateAssociateNSG -VMresourceGroupName $RESOURCE_GROUP_NAME -subnetRange $ISOLATION_SUBNET_RANGE -bastionSubnet $BASTION_SUBNET_RANGE }"
+    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CreateNSG }"
+
+associate_nsg_to_subnet:
+  stage: associate_nsg_to_subnet
+  script:
+    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-AssociateNSGtoSubnet }"
 
 create_bastion_pip:
   stage: create_bastion_pip
   script:
-    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CreateBastionPIP -VMresourceGroupName $RESOURCE_GROUP_NAME }"
+    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CreateBastionPIP }"
 
-isolate_vm:
-  stage: isolate_vm
+move_vm_to_isolation_subnet:
+  stage: move_vm_to_isolation_subnet
   script:
-    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-IsolateVM -vmName $VM_NAME -VMresourceGroupName $RESOURCE_GROUP_NAME }"
+    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-MoveVMtoIsolationSubnet }"
 
 create_bastion_host:
   stage: create_bastion_host
   script:
-    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CreateBastionHost -VMresourceGroupName $RESOURCE_GROUP_NAME }"
+    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CreateBastionHost }"
+
+completion_output:
+  stage: completion_output
+  script:
+    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CompletionOutput }"
