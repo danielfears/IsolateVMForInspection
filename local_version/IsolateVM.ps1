@@ -1,7 +1,15 @@
 # Authored by Dan Fears - Microsoft
 
-# Constants
+# Parameters for CI/CD pipeline use
+param(
+    [string]$subscriptionId,
+    [string]$VMresourceGroupName,
+    [string]$vmName,
+    [string]$subnetRange,
+    [string]$bastionSubnet
+)
 
+# Constants
 $bastionName = "Isolation-Bastion"
 $nsgName = "Isolation-NSG"
 $isolationSubnetName = "Isolation-Subnet"
@@ -9,7 +17,6 @@ $bastionSubnetName = "AzureBastionSubnet"
 $bastionPIPName = "BastionPIP"
 
 # Hash table that outputs what resources have been created and need cleaning up, updates on each successful resource created
-
 $createdResources = @{
     "Isolation-Subnet" = $false
     "AzureBastionSubnet" = $false
@@ -18,8 +25,7 @@ $createdResources = @{
     "Isolation-Bastion" = $false
 }
 
-# Function to iterate through the hashtable to output report of created resources
-
+# Iterate through the hashtable to output report of created resources
 function Invoke-OutputResources {
     
     $checkAllTrue = $createdResources.Values -contains $false -eq $false # Check if all resources are created and createdResources hash table values set to true
@@ -35,7 +41,8 @@ function Invoke-OutputResources {
     }
 }
 
-function Invoke-UserLogin { # Authenticate Azure Account and login
+# Authenticate Azure Account and login
+function Invoke-UserLogin {
 
     $context = Get-AzContext
 
@@ -56,7 +63,8 @@ function Invoke-UserLogin { # Authenticate Azure Account and login
 
 }
 
-function Invoke-SubscriptionInput { # Accept input from user for Subscription ID, validate and set context
+# Accept input from user for Subscription ID, validate and set context
+function Invoke-SubscriptionInput {
 
     $allSubscriptions = Get-AzSubscription -ErrorAction SilentlyContinue
 
@@ -91,7 +99,8 @@ function Invoke-SubscriptionInput { # Accept input from user for Subscription ID
     } while ($true)
 }
 
-function Invoke-ResourceGroupInput { # Accept input from user for Resource Group Name, validate and set variable
+# Accept input from user for Resource Group Name, validate and set variable
+function Invoke-ResourceGroupInput {
 
     $allResourceGroups = Get-AzResourceGroup -ErrorAction SilentlyContinue
 
@@ -115,7 +124,8 @@ function Invoke-ResourceGroupInput { # Accept input from user for Resource Group
     } while ($true)
 }
 
-function Invoke-VMNameInput { # Accept input for VM name and check if it exists in the resource group, validate and set variable
+# Accept input for VM name and check if it exists in the resource group, validate and set variable
+function Invoke-VMNameInput {
 
     $allVMs = Get-AzVM -ResourceGroupName $VMresourceGroupName -ErrorAction SilentlyContinue
     if ($null -eq $allVMs) {
@@ -136,7 +146,8 @@ function Invoke-VMNameInput { # Accept input for VM name and check if it exists 
     } while ($true)
 }
 
-function Invoke-VMDetails { # Get VM details and set variables
+# Get VM details and set variables
+function Invoke-VMDetails {
 
     try {
         $vm = Get-AzVM -Name $vmName -ResourceGroupName $VMresourceGroupName -ErrorAction Stop
@@ -165,13 +176,14 @@ Write-Host " "
 Write-Host "Virtual network range associated to VM is: $vnetRange"
 Write-Host " "
 
-
-function Invoke-IsValidIpAddress([string]$ip) { # IP address validation function
+# IP address validation function
+function Invoke-IsValidIpAddress([string]$ip) { 
     $ipPattern = "\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\/[0-9]{1,2}\b"
     return [System.Text.RegularExpressions.Regex]::IsMatch($ip, $ipPattern)
 }
 
-function Invoke-IsolationSubnetInput { # Accept input from user for isolation subnet IP address range, validate and set variable
+# Accept input from user for isolation subnet IP address range, validate and set variable
+function Invoke-IsolationSubnetInput { 
 
     do {
         $subnetRange = Read-Host -Prompt "Enter Subnet Address Space (CIDR) for isolation subnet"
@@ -185,7 +197,8 @@ function Invoke-IsolationSubnetInput { # Accept input from user for isolation su
     
 }
 
-function Invoke-BastionSubnetInput { # Accept input from user for Bastion subnet IP address range, validate and set variable
+# Accept input from user for Bastion subnet IP address range, validate and set variable
+function Invoke-BastionSubnetInput { 
 
     do {
         $bastionSubnet = Read-Host -Prompt "Enter Subnet Address Space (CIDR) for Bastion subnet"
@@ -199,7 +212,8 @@ function Invoke-BastionSubnetInput { # Accept input from user for Bastion subnet
     
 }
 
-# function Invoke-BlastRadiusCheck { # Check blast radius of target VM
+# Check blast radius of target VM
+# function Invoke-BlastRadiusCheck { 
 
 #     # VMs connected within same subnet
 #     $allVMs = Get-AzVM
@@ -253,7 +267,8 @@ function Invoke-BastionSubnetInput { # Accept input from user for Bastion subnet
 
 # }
 
-function Invoke-CreateSubnets { # Create Isolation & Bastion subnets
+# Create Isolation & Bastion subnets
+function Invoke-CreateSubnets {
 
     try {
         $vnet = Get-AzVirtualNetwork -Name $vnetname -ResourceGroupName $VMresourceGroupName -ErrorAction Stop
@@ -274,7 +289,8 @@ function Invoke-CreateSubnets { # Create Isolation & Bastion subnets
 
 }
 
-function Invoke-CreateNSG { # Create NSG and Allow Bastion Host Access
+# Create NSG and Allow Bastion Host Access
+function Invoke-CreateNSG {
 
     try {
         $nsg = New-AzNetworkSecurityGroup -ResourceGroupName $VMresourceGroupName -Location $location -Name $nsgName -ErrorAction Stop
@@ -294,7 +310,8 @@ function Invoke-CreateNSG { # Create NSG and Allow Bastion Host Access
 
 }
 
-function Invoke-AssociateNSGtoSubnet { # Associate NSG with Subnet
+# Associate NSG with Subnet
+function Invoke-AssociateNSGtoSubnet {
 
     try {
         $vnet = Get-AzVirtualNetwork -Name $vnet.name -ResourceGroupName $VMresourceGroupName -ErrorAction Stop
@@ -310,7 +327,8 @@ function Invoke-AssociateNSGtoSubnet { # Associate NSG with Subnet
 
 }
 
-function Invoke-CreateBastionPIP { # Create Public IP for Bastion Host
+# Create Public IP for Bastion Host
+function Invoke-CreateBastionPIP {
 
     try {
         $BastionPIP = New-AzPublicIpAddress -Name $bastionPIPName -ResourceGroupName $VMresourceGroupName -Location $location -AllocationMethod Static -Sku Standard -ErrorAction Stop
@@ -325,7 +343,8 @@ function Invoke-CreateBastionPIP { # Create Public IP for Bastion Host
 
 }
 
-function Invoke-MoveVMtoIsolationSubnet { # Move VM to Isolation Subnet
+ # Move VM to Isolation Subnet
+function Invoke-MoveVMtoIsolationSubnet {
 
     try {
         $vm = Get-AzVM -Name $vmName -ResourceGroupName $VMresourceGroupName -ErrorAction Stop
@@ -343,7 +362,8 @@ function Invoke-MoveVMtoIsolationSubnet { # Move VM to Isolation Subnet
 
 }
 
-function Invoke-CreateBastionHost { # Create Bastion Host
+# Create Bastion Host
+function Invoke-CreateBastionHost { 
 
     try {
         $BastionPIP = Get-AzPublicIpAddress -Name $bastionPIPName -ResourceGroupName $VMresourceGroupName -ErrorAction Stop
@@ -360,7 +380,8 @@ function Invoke-CreateBastionHost { # Create Bastion Host
 
 }
 
-function Invoke-CompletionOutput { # Output completion message and list of created resources
+# Output completion message and list of created resources
+function Invoke-CompletionOutput { 
 
     Write-Host " "
     Write-Host "Script completed successfully! The following resources have been created:"
@@ -373,7 +394,8 @@ function Invoke-CompletionOutput { # Output completion message and list of creat
 
 }
 
-function Invoke-IsolateVM { # Main function to run the script
+# Main function to run the script
+function Invoke-IsolateVM { 
 
     Invoke-UserLogin
     Invoke-SubscriptionInput
