@@ -96,7 +96,9 @@ function Invoke-SubscriptionInput {
     }
     do {
 
-        $subscriptionId = Read-Host -Prompt "Enter the Azure Subscription ID for the VM you want to isolate:"
+        if(!$subscriptionId) {
+            $subscriptionId = Read-Host -Prompt "Enter the Azure Subscription ID for the VM you want to isolate:"
+        }
         
         if (-not $subscriptionId) {
             Write-Host "No input entered. Please enter a valid Subscription ID."
@@ -131,7 +133,10 @@ function Invoke-ResourceGroupInput {
         exit
     }
     do {
-        $VMresourceGroupName = Read-Host -Prompt "Enter the name of the resource group"
+
+        if (!$VMresourceGroupName) {
+            $VMresourceGroupName = Read-Host -Prompt "Enter the name of the resource group"
+        }
         
         if (-not $VMresourceGroupName) {
             Write-Host "No input entered. Please enter a valid resource group name."
@@ -156,7 +161,11 @@ function Invoke-VMNameInput {
     }
 
     do {
-        $vmName = Read-Host -Prompt "Enter Virtual Machine Name"
+
+        if (!$vmName) {
+            $vmName = Read-Host -Prompt "Enter the name of the Virtual Machine"
+        }
+
         $vmExists = $allVMs | Where-Object { $_.Name -eq $vmName }
 
         if ($vmExists) {
@@ -208,7 +217,9 @@ function Invoke-IsValidIpAddress([string]$ip) {
 function Invoke-IsolationSubnetInput { 
 
     do {
-        $subnetRange = Read-Host -Prompt "Enter Subnet Address Space (CIDR) for isolation subnet"
+        if (!$subnetRange) {
+            $subnetRange = Read-Host -Prompt "Enter Subnet Address Space (CIDR) for isolation subnet"
+        }
         $isValid = Invoke-IsValidIpAddress -ip $subnetRange
         if (-not $isValid) {
             Write-Host "Invalid IP Address range. Please enter a valid IP Address range."
@@ -223,7 +234,9 @@ function Invoke-IsolationSubnetInput {
 function Invoke-BastionSubnetInput { 
 
     do {
-        $bastionSubnet = Read-Host -Prompt "Enter Subnet Address Space (CIDR) for Bastion subnet"
+        if (!$bastionSubnet) {
+            $bastionSubnet = Read-Host -Prompt "Enter Subnet Address Space (CIDR) for Bastion subnet"
+        }
         $isValid = IsValidIpAddress -ip $bastionSubnet
         if (-not $isValid) {
             Write-Host "Invalid IP Address range. Please enter a valid IP Address range."
