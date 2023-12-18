@@ -43,24 +43,46 @@ function Invoke-OutputResources {
 
 # Authenticate Azure Account and login
 function Invoke-UserLogin {
+    param(
+        [string]$AzureTenantId,
+        [string]$AzureClientId,
+        [string]$AzureClientSecret
+    )
 
-    $context = Get-AzContext
+    if ($AzureTenantId -and $AzureClientId -and $AzureClientSecret) {
 
-    if (!$context) {  
-
-        Connect-AzAccount -ErrorAction Stop
-        $context = Get-AzContext
+        # Programmatic login
+        $SecureClientSecret = ConvertTo-SecureString $AzureClientSecret -AsPlainText -Force
+        $Credential = New-Object System.Management.Automation.PSCredential($AzureClientId, $SecureClientSecret)
         
+        Connect-AzAccount -ServicePrincipal -Tenant $AzureTenantId -Credential $Credential -ErrorAction Stop
+        $context = Get-AzContext
+
         if ($context) {
-            Write-Host "Successfully logged in. Context set to subscription: $($context.Subscription)"
+            Write-Host "Successfully logged in with service principal. Context set to subscription: $($context.Subscription)"
         } else {
-            Write-Host "Failed to log in. Please check your credentials."
+            Write-Host "Failed to log in with service principal. Please check your credentials."
             exit
         }
     } else {
-        Write-Host "Already logged in and authenticated. Context set to subscription: $($context.Subscription)"
-    }
 
+        # Manual login
+        $context = Get-AzContext
+
+        if (!$context) {  
+            Connect-AzAccount -ErrorAction Stop
+            $context = Get-AzContext
+            
+            if ($context) {
+                Write-Host "Successfully logged in manually. Context set to subscription: $($context.Subscription)"
+            } else {
+                Write-Host "Failed to log in manually. Please check your credentials."
+                exit
+            }
+        } else {
+            Write-Host "Already logged in and authenticated. Context set to subscription: $($context.Subscription)"
+        }
+    }
 }
 
 # Accept input from user for Subscription ID, validate and set context
