@@ -448,3 +448,6 @@ function Invoke-IsolateVM {
     Invoke-CompletionOutput
 
 }
+
+# Run VM isolation function
+Invoke-IsolateVM
