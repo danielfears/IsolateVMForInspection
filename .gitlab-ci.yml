@@ -23,54 +23,9 @@ variables:
     value: ""
 
 stages:
-  - resource_validate
-  - create_subnets
-  - create_nsg
-  - associate_nsg_to_subnet
-  - create_bastion_pip
-  - move_vm_to_isolation_subnet
-  - create_bastion_host
-  - completion_output
+  - isolate_vm
 
-before_script:
-  - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-UserLogin -AzureTenantId $AZURE_TENANT_ID -AzureClientId $AZURE_CLIENT_ID -AzureClientSecret $AZURE_CLIENT_SECRET -subscriptionId $AZURE_SUBSCRIPTION_ID -VMresourceGroupName $RESOURCE_GROUP_NAME -vmName $VM_NAME -subnetRange $ISOLATION_SUBNET_RANGE -bastionSubnet $BASTION_SUBNET_RANGE }"
-
-resource_validate:
-  stage: resource_validate
+isolate_vm:
+  stage: isolate_vm
   script:
-    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-SubscriptionInput; Invoke-ResourceGroupInput; Invoke-VMNameInput }"
-
-create_subnets:
-  stage: create_subnets
-  script:
-    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CreateSubnets }"
-
-create_nsg:
-  stage: create_nsg
-  script:
-    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CreateNSG }"
-
-associate_nsg_to_subnet:
-  stage: associate_nsg_to_subnet
-  script:
-    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-AssociateNSGtoSubnet }"
-
-create_bastion_pip:
-  stage: create_bastion_pip
-  script:
-    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CreateBastionPIP }"
-
-move_vm_to_isolation_subnet:
-  stage: move_vm_to_isolation_subnet
-  script:
-    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-MoveVMtoIsolationSubnet }"
-
-create_bastion_host:
-  stage: create_bastion_host
-  script:
-    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CreateBastionHost }"
-
-completion_output:
-  stage: completion_output
-  script:
-    - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-CompletionOutput }"
+  - pwsh -Command "& { . .\IsolateVM.ps1; Invoke-IsolateVM -AzureTenantId $AZURE_TENANT_ID -AzureClientId $AZURE_CLIENT_ID -AzureClientSecret $AZURE_CLIENT_SECRET -subscriptionId $AZURE_SUBSCRIPTION_ID -VMresourceGroupName $RESOURCE_GROUP_NAME -vmName $VM_NAME -subnetRange $ISOLATION_SUBNET_RANGE -bastionSubnet $BASTION_SUBNET_RANGE }"
