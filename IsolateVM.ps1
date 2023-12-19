@@ -46,11 +46,6 @@ function Invoke-OutputResources {
 
 # Authenticate Azure Account and login
 function Invoke-UserLogin {
-    param(
-        [string]$AzureTenantId,
-        [string]$AzureClientId,
-        [string]$AzureClientSecret
-    )
 
     if ($AzureTenantId -and $AzureClientId -and $AzureClientSecret) {
 
