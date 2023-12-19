@@ -97,7 +97,8 @@ function Invoke-SubscriptionInput {
     }
     do {
         if (-not $script:subscriptionId) {
-            $script:subscriptionId = Read-Host -Prompt "Enter the Azure Subscription ID for the VM you want to isolate:"
+            Write-Host ""
+            $script:subscriptionId = Read-Host -Prompt "Enter the Azure Subscription ID for the VM you want to isolate"
         }
         
         if (-not $script:subscriptionId) {
@@ -135,6 +136,7 @@ function Invoke-ResourceGroupInput {
     }
     do {
         if (-not $script:VMresourceGroupName) {
+            Write-Host ""
             $script:VMresourceGroupName = Read-Host -Prompt "Enter the name of the resource group"
         }
         
@@ -163,6 +165,7 @@ function Invoke-VMNameInput {
 
     do {
         if (-not $script:vmName) {
+            Write-Host ""
             $script:vmName = Read-Host -Prompt "Enter the name of the Virtual Machine"
         }
 
@@ -170,7 +173,6 @@ function Invoke-VMNameInput {
         $vmExists = $allVMs | Where-Object { $_.Name -eq $script:vmName }
 
         if ($vmExists) {
-            Write-Host "A VM with the name '$script:vmName' exists in the resource group '$script:VMresourceGroupName'."
             break
         } else {
             Write-Host "No VM with the name '$script:vmName' found in the resource group '$script:VMresourceGroupName'. Please try again."
@@ -329,12 +331,12 @@ function Invoke-CreateSubnets {
 function Invoke-CreateNSG {
 
     try {
-        $nsg = New-AzNetworkSecurityGroup -ResourceGroupName $script:VMresourceGroupName -Location $script:location -Name $script:nsgName -ErrorAction Stop
+        $script:nsg = New-AzNetworkSecurityGroup -ResourceGroupName $script:VMresourceGroupName -Location $script:location -Name $script:nsgName -ErrorAction Stop
         $rule1 = New-AzNetworkSecurityRuleConfig -Name "AllowBastionToIsolation" -Description "Allow traffic from Bastion to Isolation Subnet" -Access Allow -Protocol Tcp -Direction Inbound -Priority 100 -SourceAddressPrefix $script:bastionSubnet -SourcePortRange "*" -DestinationAddressPrefix $script:subnetRange -DestinationPortRange "*" -ErrorAction Stop
         $rule2 = New-AzNetworkSecurityRuleConfig -Name "DenyAllInbound" -Description "Deny all other inbound traffic" -Access Deny -Protocol "*" -Direction Inbound -Priority 4096 -SourceAddressPrefix "*" -SourcePortRange "*" -DestinationAddressPrefix "*" -DestinationPortRange "*" -ErrorAction Stop
-        $nsg.SecurityRules.Add($rule1)
-        $nsg.SecurityRules.Add($rule2)
-        Set-AzNetworkSecurityGroup -NetworkSecurityGroup $nsg -ErrorAction Stop
+        $script:nsg.SecurityRules.Add($rule1)
+        $script:nsg.SecurityRules.Add($rule2)
+        Set-AzNetworkSecurityGroup -NetworkSecurityGroup $script:nsg -ErrorAction Stop
 
         $script:createdResources["Isolation-NSG"] = $true
     }
@@ -382,15 +384,23 @@ function Invoke-CreateBastionPIP {
 
  # Move VM to Isolation Subnet
  function Invoke-MoveVMtoIsolationSubnet {
-
     try {
         # Retrieving the VM and NIC details
         $vm = Get-AzVM -Name $script:vmName -ResourceGroupName $script:VMresourceGroupName -ErrorAction Stop
         $nic = Get-AzNetworkInterface -ResourceGroupName $script:VMresourceGroupName | Where-Object { $_.Id -eq $vm.NetworkProfile.NetworkInterfaces.Id } -ErrorAction Stop
-        $newSubnetId = Get-AzVirtualNetworkSubnetConfig -Name $script:isolationSubnetName -VirtualNetwork $script:vnet -ErrorAction Stop
+        
+        # Retrieve the virtual network and then the specific subnet
+        $vnet = Get-AzVirtualNetwork -Name $script:vnetname -ResourceGroupName $script:VMresourceGroupName -ErrorAction Stop
+        $subnet = $vnet.Subnets | Where-Object { $_.Name -eq $script:isolationSubnetName }
+        $subnetId = $subnet.Id
+
+        # Ensure we have a valid subnet ID
+        if (-not $subnetId) {
+            throw "Subnet ID is not valid or not found."
+        }
 
         # Updating the NIC configuration
-        $nic.IpConfigurations[0].Subnet.Id = $newSubnetId.Id
+        $nic.IpConfigurations[0].Subnet.Id = $subnetId
         Set-AzNetworkInterface -NetworkInterface $nic -ErrorAction Stop
 
         # Updating the VM configuration
@@ -401,8 +411,8 @@ function Invoke-CreateBastionPIP {
         Invoke-OutputResources
         exit
     }
-
 }
+
 
 
 # Create Bastion Host
@@ -458,18 +468,3 @@ function Invoke-IsolateVM {
 
 # Run VM isolation function
 Invoke-IsolateVM
-
-# Invoke-UserLogin
-# Invoke-SubscriptionInput
-# Invoke-ResourceGroupInput
-# Invoke-VMNameInput
-# Invoke-VMDetails
-# Invoke-IsolationSubnetInput
-# Invoke-BastionSubnetInput
-# Invoke-CreateSubnets
-# Invoke-CreateNSG
-# Invoke-AssociateNSGtoSubnet
-# Invoke-CreateBastionPIP
-# Invoke-MoveVMtoIsolationSubnet
-# Invoke-CreateBastionHost
-# Invoke-CompletionOutput
