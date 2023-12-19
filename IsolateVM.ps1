@@ -1,12 +1,13 @@
 # Authored by Dan Fears - Microsoft
 
-# Parameters for CI/CD pipeline use
+# Parameters for CI/CD pipeline value input
 param(
     [string]$subscriptionId,
     [string]$VMresourceGroupName,
     [string]$vmName,
     [string]$subnetRange,
-    [string]$bastionSubnet
+    [string]$bastionSubnet,
+    [string]$vnetname
 )
 
 # Constants
@@ -28,10 +29,10 @@ $createdResources = @{
 # Iterate through the hashtable to output report of created resources
 function Invoke-OutputResources {
     
-    $checkAllTrue = $createdResources.Values -contains $false -eq $false # Check if all resources are created and createdResources hash table values set to true
+    $checkAllTrue = $script:createdResources.Values -contains $false -eq $false # Check if all resources are created and createdResources hash table values set to true
 
-    foreach ($key in $createdResources.Keys) {
-        if ($createdResources[$key] -eq $true) {
+    foreach ($key in $script:createdResources.Keys) {
+        if ($script:createdResources[$key] -eq $true) {
             $outputMessage = "* $key"
             if (!$checkAllTrue) {
                 $outputMessage += " will need to be deleted to re-run this script"
@@ -95,33 +96,33 @@ function Invoke-SubscriptionInput {
         exit
     }
     do {
-
-        if(!$subscriptionId) {
-            $subscriptionId = Read-Host -Prompt "Enter the Azure Subscription ID for the VM you want to isolate:"
+        if (-not $script:subscriptionId) {
+            $script:subscriptionId = Read-Host -Prompt "Enter the Azure Subscription ID for the VM you want to isolate:"
         }
         
-        if (-not $subscriptionId) {
+        if (-not $script:subscriptionId) {
             Write-Host "No input entered. Please enter a valid Subscription ID."
             continue
         }
 
-        $subscriptionExists = $allSubscriptions | Where-Object { $_.Id -eq $subscriptionId }
+        $subscriptionExists = $allSubscriptions | Where-Object { $_.Id -eq $script:subscriptionId }
 
         if ($subscriptionExists) {
             try {
-                Set-AzContext -Subscription $subscriptionId -ErrorAction Stop
+                Set-AzContext -Subscription $script:subscriptionId -ErrorAction Stop
                 break
             }
             catch {
-                Write-Host "Error setting context with Subscription ID '$subscriptionId': $_"
+                Write-Host "Error setting context with Subscription ID '$script:subscriptionId': $_"
                 continue
             }
         } else {
-            Write-Host "Subscription ID '$subscriptionId' is invalid. Please enter a valid Subscription ID."
+            Write-Host "Subscription ID '$script:subscriptionId' is invalid. Please enter a valid Subscription ID."
         }
 
     } while ($true)
 }
+
 
 # Accept input from user for Resource Group Name, validate and set variable
 function Invoke-ResourceGroupInput {
@@ -133,49 +134,50 @@ function Invoke-ResourceGroupInput {
         exit
     }
     do {
-
-        if (!$VMresourceGroupName) {
-            $VMresourceGroupName = Read-Host -Prompt "Enter the name of the resource group"
+        if (-not $script:VMresourceGroupName) {
+            $script:VMresourceGroupName = Read-Host -Prompt "Enter the name of the resource group"
         }
         
-        if (-not $VMresourceGroupName) {
+        if (-not $script:VMresourceGroupName) {
             Write-Host "No input entered. Please enter a valid resource group name."
             continue
         }
-        $resourceGroupExists = $allResourceGroups | Where-Object { $_.ResourceGroupName -eq $VMresourceGroupName }
+        $resourceGroupExists = $allResourceGroups | Where-Object { $_.ResourceGroupName -eq $script:VMresourceGroupName }
         if ($resourceGroupExists) {
             break
         } else {
-            Write-Host "Resource group '$VMresourceGroupName' does not exist in the subscription. Please enter a valid resource group name."
+            Write-Host "Resource group '$script:VMresourceGroupName' does not exist in the subscription. Please enter a valid resource group name."
         }
     } while ($true)
 }
+
 
 # Accept input for VM name and check if it exists in the resource group, validate and set variable
 function Invoke-VMNameInput {
 
-    $allVMs = Get-AzVM -ResourceGroupName $VMresourceGroupName -ErrorAction SilentlyContinue
+    $allVMs = Get-AzVM -ResourceGroupName $script:VMresourceGroupName -ErrorAction SilentlyContinue
     if ($null -eq $allVMs) {
-        Write-Host "No Virtual Machines found in the resource group '$VMresourceGroupName'."
+        Write-Host "No Virtual Machines found in the resource group '$script:VMresourceGroupName'."
         exit
     }
 
     do {
-
-        if (!$vmName) {
-            $vmName = Read-Host -Prompt "Enter the name of the Virtual Machine"
+        if (-not $script:vmName) {
+            $script:vmName = Read-Host -Prompt "Enter the name of the Virtual Machine"
         }
 
-        $vmExists = $allVMs | Where-Object { $_.Name -eq $vmName }
+        # Check if VM exists
+        $vmExists = $allVMs | Where-Object { $_.Name -eq $script:vmName }
 
         if ($vmExists) {
-            Write-Host "A VM with the name '$vmName' exists in the resource group '$VMresourceGroupName'."
+            Write-Host "A VM with the name '$script:vmName' exists in the resource group '$script:VMresourceGroupName'."
             break
         } else {
-            Write-Host "No VM with the name '$vmName' found in the resource group '$VMresourceGroupName'. Please try again."
+            Write-Host "No VM with the name '$script:vmName' found in the resource group '$script:VMresourceGroupName'. Please try again."
         }
     } while ($true)
 }
+
 
 # Get VM details and set variables
 function Invoke-VMDetails {
@@ -186,10 +188,19 @@ function Invoke-VMDetails {
         $subnetId = $nic.IpConfigurations[0].Subnet.Id
         $subnet = Get-AzVirtualNetworkSubnetConfig -ResourceId $subnetId -ErrorAction Stop
         $vnet = Get-AzVirtualNetwork | Where-Object { $_.Subnets.Id -contains $subnet.Id } -ErrorAction Stop
-        $vnetname = $vnet.Name
-        $vnetRange = $vnet.AddressSpace.AddressPrefixes
+        
+        $script:vnetname = $vnet.Name
+        $script:vnetRange = $vnet.AddressSpace.AddressPrefixes
+        $script:location = $vnet.Location
 
-        $location = $vnet.Location
+        # Summarise user inputs and display on screen
+        Write-Host " "
+        Write-Host "Target Subscription ID is: $script:subscriptionId"
+        Write-Host "Target Resource Group is: $script:VMresourceGroupName"
+        Write-Host "Target Virtual Machine is: $script:vmName"
+        Write-Host " "
+        Write-Host "Virtual network range associated to VM is: $script:vnetRange"
+        Write-Host " "
     }
     catch {
         Write-Host "Error: $_"
@@ -197,15 +208,6 @@ function Invoke-VMDetails {
     }
 
 }
-
-Clear-Host
-
-Write-Host "Target Subscription ID is: $subscriptionId"
-Write-Host "Target Resource Group is: $VMresourceGroupName"
-Write-Host "Target Virtual Machine is: $vmName"
-Write-Host " "
-Write-Host "Virtual network range associated to VM is: $vnetRange"
-Write-Host " "
 
 # IP address validation function
 function Invoke-IsValidIpAddress([string]$ip) { 
@@ -215,35 +217,34 @@ function Invoke-IsValidIpAddress([string]$ip) {
 
 # Accept input from user for isolation subnet IP address range, validate and set variable
 function Invoke-IsolationSubnetInput { 
-
     do {
-        if (!$subnetRange) {
-            $subnetRange = Read-Host -Prompt "Enter Subnet Address Space (CIDR) for isolation subnet"
+        if (-not $script:subnetRange) {
+            $script:subnetRange = Read-Host -Prompt "Enter Subnet Address Space (CIDR) for isolation subnet"
         }
-        $isValid = Invoke-IsValidIpAddress -ip $subnetRange
+        $isValid = Invoke-IsValidIpAddress -ip $script:subnetRange
         if (-not $isValid) {
             Write-Host "Invalid IP Address range. Please enter a valid IP Address range."
         }
     } while (-not $isValid)
 
-    Write-Host "You entered a valid IP Address: $subnetRange"
-    
+    Write-Host "You entered a valid IP Address: $script:subnetRange"
 }
+
 
 # Accept input from user for Bastion subnet IP address range, validate and set variable
 function Invoke-BastionSubnetInput { 
 
     do {
-        if (!$bastionSubnet) {
-            $bastionSubnet = Read-Host -Prompt "Enter Subnet Address Space (CIDR) for Bastion subnet"
+        if (-not $script:bastionSubnet) {
+            $script:bastionSubnet = Read-Host -Prompt "Enter Subnet Address Space (CIDR) for Bastion subnet"
         }
-        $isValid = IsValidIpAddress -ip $bastionSubnet
+        $isValid = Invoke-IsValidIpAddress -ip $script:bastionSubnet
         if (-not $isValid) {
             Write-Host "Invalid IP Address range. Please enter a valid IP Address range."
         }
     } while (-not $isValid)
 
-    Write-Host "You entered a valid IP Address: $bastionSubnet"
+    Write-Host "You entered a valid IP Address: $script:bastionSubnet"
     
 }
 
@@ -306,9 +307,9 @@ function Invoke-BastionSubnetInput {
 function Invoke-CreateSubnets {
 
     try {
-        $vnet = Get-AzVirtualNetwork -Name $vnetname -ResourceGroupName $VMresourceGroupName -ErrorAction Stop
-        $isolationSubnetConfig = New-AzVirtualNetworkSubnetConfig -Name $isolationSubnetName -AddressPrefix $subnetRange -ErrorAction Stop
-        $bastionSubnetConfig = New-AzVirtualNetworkSubnetConfig -Name $bastionSubnetName -AddressPrefix $bastionSubnet -ErrorAction Stop
+        $vnet = Get-AzVirtualNetwork -Name $script:vnetname -ResourceGroupName $script:VMresourceGroupName -ErrorAction Stop
+        $isolationSubnetConfig = New-AzVirtualNetworkSubnetConfig -Name $script:isolationSubnetName -AddressPrefix $script:subnetRange -ErrorAction Stop
+        $bastionSubnetConfig = New-AzVirtualNetworkSubnetConfig -Name $script:bastionSubnetName -AddressPrefix $script:bastionSubnet -ErrorAction Stop
         $vnet.Subnets.Add($isolationSubnetConfig)
         $vnet.Subnets.Add($bastionSubnetConfig)
         Set-AzVirtualNetwork -VirtualNetwork $vnet -ErrorAction Stop
@@ -319,17 +320,18 @@ function Invoke-CreateSubnets {
         exit
     }
 
-    $createdResources["Isolation-Subnet"] = $true
-    $createdResources["AzureBastionSubnet"] = $true
+    $script:createdResources["Isolation-Subnet"] = $true
+    $script:createdResources["AzureBastionSubnet"] = $true
 
 }
+
 
 # Create NSG and Allow Bastion Host Access
 function Invoke-CreateNSG {
 
     try {
-        $nsg = New-AzNetworkSecurityGroup -ResourceGroupName $VMresourceGroupName -Location $location -Name $nsgName -ErrorAction Stop
-        $rule1 = New-AzNetworkSecurityRuleConfig -Name "AllowBastionToIsolation" -Description "Allow traffic from Bastion to Isolation Subnet" -Access Allow -Protocol Tcp -Direction Inbound -Priority 100 -SourceAddressPrefix $bastionSubnet -SourcePortRange "*" -DestinationAddressPrefix $subnetRange -DestinationPortRange "*" -ErrorAction Stop
+        $nsg = New-AzNetworkSecurityGroup -ResourceGroupName $script:VMresourceGroupName -Location $script:location -Name $script:nsgName -ErrorAction Stop
+        $rule1 = New-AzNetworkSecurityRuleConfig -Name "AllowBastionToIsolation" -Description "Allow traffic from Bastion to Isolation Subnet" -Access Allow -Protocol Tcp -Direction Inbound -Priority 100 -SourceAddressPrefix $script:bastionSubnet -SourcePortRange "*" -DestinationAddressPrefix $script:subnetRange -DestinationPortRange "*" -ErrorAction Stop
         $rule2 = New-AzNetworkSecurityRuleConfig -Name "DenyAllInbound" -Description "Deny all other inbound traffic" -Access Deny -Protocol "*" -Direction Inbound -Priority 4096 -SourceAddressPrefix "*" -SourcePortRange "*" -DestinationAddressPrefix "*" -DestinationPortRange "*" -ErrorAction Stop
         $nsg.SecurityRules.Add($rule1)
         $nsg.SecurityRules.Add($rule2)
@@ -341,18 +343,18 @@ function Invoke-CreateNSG {
         exit
     }
 
-    $createdResources["Isolation-NSG"] = $true
+    $script:createdResources["Isolation-NSG"] = $true
 
 }
+
 
 # Associate NSG with Subnet
 function Invoke-AssociateNSGtoSubnet {
 
     try {
-        $vnet = Get-AzVirtualNetwork -Name $vnet.name -ResourceGroupName $VMresourceGroupName -ErrorAction Stop
-        $subnetConfig = Get-AzVirtualNetworkSubnetConfig -Name $isolationSubnetName -VirtualNetwork $vnet -ErrorAction Stop
-        $subnetConfig.NetworkSecurityGroup = $nsg
-        $vnet | Set-AzVirtualNetwork -ErrorAction Stop
+        $subnetConfig = Get-AzVirtualNetworkSubnetConfig -Name $script:isolationSubnetName -VirtualNetwork $script:vnet -ErrorAction Stop
+        $subnetConfig.NetworkSecurityGroup = $script:nsg
+        $script:vnet | Set-AzVirtualNetwork -ErrorAction Stop
     }
     catch {
         Write-Host "Error: $_"
@@ -361,12 +363,15 @@ function Invoke-AssociateNSGtoSubnet {
     }
 
 }
+
+
 
 # Create Public IP for Bastion Host
 function Invoke-CreateBastionPIP {
 
     try {
-        $BastionPIP = New-AzPublicIpAddress -Name $bastionPIPName -ResourceGroupName $VMresourceGroupName -Location $location -AllocationMethod Static -Sku Standard -ErrorAction Stop
+        # Creating the Public IP address and storing it in a script-scoped variable
+        $script:BastionPIP = New-AzPublicIpAddress -Name $script:bastionPIPName -ResourceGroupName $script:VMresourceGroupName -Location $script:location -AllocationMethod Static -Sku Standard -ErrorAction Stop
     }
     catch {
         Write-Host "Error: $_"
@@ -374,20 +379,26 @@ function Invoke-CreateBastionPIP {
         exit
     }
 
-    $createdResources["Bastion Public IP address"] = $true
-
+    # Updating the created resources tracking hashtable
+    $script:createdResources["Bastion Public IP address"] = $true
 }
+
 
  # Move VM to Isolation Subnet
-function Invoke-MoveVMtoIsolationSubnet {
+ function Invoke-MoveVMtoIsolationSubnet {
 
     try {
-        $vm = Get-AzVM -Name $vmName -ResourceGroupName $VMresourceGroupName -ErrorAction Stop
-        $nic = Get-AzNetworkInterface -ResourceGroupName $VMresourceGroupName | Where-Object { $_.Id -eq $vm.NetworkProfile.NetworkInterfaces.Id } -ErrorAction Stop
-        $newSubnetId = Get-AzVirtualNetworkSubnetConfig -Name $isolationSubnetName -VirtualNetwork $vnet -ErrorAction Stop
+        # Retrieving the VM and NIC details
+        $vm = Get-AzVM -Name $script:vmName -ResourceGroupName $script:VMresourceGroupName -ErrorAction Stop
+        $nic = Get-AzNetworkInterface -ResourceGroupName $script:VMresourceGroupName | Where-Object { $_.Id -eq $vm.NetworkProfile.NetworkInterfaces.Id } -ErrorAction Stop
+        $newSubnetId = Get-AzVirtualNetworkSubnetConfig -Name $script:isolationSubnetName -VirtualNetwork $script:vnet -ErrorAction Stop
+
+        # Updating the NIC configuration
         $nic.IpConfigurations[0].Subnet.Id = $newSubnetId.Id
         Set-AzNetworkInterface -NetworkInterface $nic -ErrorAction Stop
-        Update-AzVM -VM $vm -ResourceGroupName $VMresourceGroupName -ErrorAction Stop
+
+        # Updating the VM configuration
+        Update-AzVM -VM $vm -ResourceGroupName $script:VMresourceGroupName -ErrorAction Stop
     }
     catch {
         Write-Host "Error: $_"
@@ -396,14 +407,15 @@ function Invoke-MoveVMtoIsolationSubnet {
     }
 
 }
+
 
 # Create Bastion Host
 function Invoke-CreateBastionHost { 
 
     try {
-        $BastionPIP = Get-AzPublicIpAddress -Name $bastionPIPName -ResourceGroupName $VMresourceGroupName -ErrorAction Stop
-        $vnet = Get-AzVirtualNetwork -Name $vnet.name -ResourceGroupName $VMresourceGroupName -ErrorAction Stop
-        New-AzBastion -ResourceGroupName $VMresourceGroupName -Name $bastionName -PublicIpAddress $BastionPIP -VirtualNetwork $vnet -ErrorAction Stop -AsJob
+        $BastionPIP = Get-AzPublicIpAddress -Name $script:bastionPIPName -ResourceGroupName $script:VMresourceGroupName -ErrorAction Stop
+        $vnet = $script:vnet
+        New-AzBastion -ResourceGroupName $script:VMresourceGroupName -Name $script:bastionName -PublicIpAddress $BastionPIP -VirtualNetwork $vnet -ErrorAction Stop -AsJob
     }
     catch {
         Write-Host "Error: $_"
@@ -411,9 +423,9 @@ function Invoke-CreateBastionHost {
         exit
     }
 
-    $createdResources["Isolation-Bastion"] = $true
-
+    $script:createdResources["Isolation-Bastion"] = $true
 }
+
 
 # Output completion message and list of created resources
 function Invoke-CompletionOutput { 
@@ -425,7 +437,7 @@ function Invoke-CompletionOutput {
     Invoke-OutputResources
 
     Write-Host " "
-    Write-Host "VM: $vmName has been moved to the Isolation Subnet and is now ready for inspection."
+    Write-Host "VM: $script:vmName has been moved to the Isolation Subnet and is now ready for inspection."
 
 }
 
@@ -450,4 +462,19 @@ function Invoke-IsolateVM {
 }
 
 # Run VM isolation function
-Invoke-IsolateVM
+# Invoke-IsolateVM
+
+Invoke-UserLogin
+Invoke-SubscriptionInput
+Invoke-ResourceGroupInput
+Invoke-VMNameInput
+Invoke-VMDetails
+Invoke-IsolationSubnetInput
+Invoke-BastionSubnetInput
+Invoke-CreateSubnets
+Invoke-CreateNSG
+Invoke-AssociateNSGtoSubnet
+Invoke-CreateBastionPIP
+Invoke-MoveVMtoIsolationSubnet
+Invoke-CreateBastionHost
+Invoke-CompletionOutput
