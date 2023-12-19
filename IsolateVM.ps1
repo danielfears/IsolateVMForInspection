@@ -187,11 +187,11 @@ function Invoke-VMDetails {
         $nic = Get-AzNetworkInterface -ResourceGroupName $VMresourceGroupName | Where-Object { $_.Id -eq $vm.NetworkProfile.NetworkInterfaces.Id } -ErrorAction Stop
         $subnetId = $nic.IpConfigurations[0].Subnet.Id
         $subnet = Get-AzVirtualNetworkSubnetConfig -ResourceId $subnetId -ErrorAction Stop
-        $vnet = Get-AzVirtualNetwork | Where-Object { $_.Subnets.Id -contains $subnet.Id } -ErrorAction Stop
+        $script:vnet = Get-AzVirtualNetwork | Where-Object { $_.Subnets.Id -contains $subnet.Id } -ErrorAction Stop
         
-        $script:vnetname = $vnet.Name
-        $script:vnetRange = $vnet.AddressSpace.AddressPrefixes
-        $script:location = $vnet.Location
+        $script:vnetname = $script:vnet.Name
+        $script:vnetRange = $script:vnet.AddressSpace.AddressPrefixes
+        $script:location = $script:vnet.Location
 
         # Summarise user inputs and display on screen
         Write-Host " "
@@ -307,22 +307,21 @@ function Invoke-BastionSubnetInput {
 function Invoke-CreateSubnets {
 
     try {
-        $vnet = Get-AzVirtualNetwork -Name $script:vnetname -ResourceGroupName $script:VMresourceGroupName -ErrorAction Stop
+        $script:vnet = Get-AzVirtualNetwork -Name $script:vnetname -ResourceGroupName $script:VMresourceGroupName -ErrorAction Stop
         $isolationSubnetConfig = New-AzVirtualNetworkSubnetConfig -Name $script:isolationSubnetName -AddressPrefix $script:subnetRange -ErrorAction Stop
         $bastionSubnetConfig = New-AzVirtualNetworkSubnetConfig -Name $script:bastionSubnetName -AddressPrefix $script:bastionSubnet -ErrorAction Stop
-        $vnet.Subnets.Add($isolationSubnetConfig)
-        $vnet.Subnets.Add($bastionSubnetConfig)
-        Set-AzVirtualNetwork -VirtualNetwork $vnet -ErrorAction Stop
+        $script:vnet.Subnets.Add($isolationSubnetConfig)
+        $script:vnet.Subnets.Add($bastionSubnetConfig)
+        Set-AzVirtualNetwork -VirtualNetwork $script:vnet -ErrorAction Stop
+
+        $script:createdResources["Isolation-Subnet"] = $true
+        $script:createdResources["AzureBastionSubnet"] = $true
     }
     catch {
         Write-Host "Error: $_"
         Invoke-OutputResources
         exit
     }
-
-    $script:createdResources["Isolation-Subnet"] = $true
-    $script:createdResources["AzureBastionSubnet"] = $true
-
 }
 
 
@@ -336,15 +335,14 @@ function Invoke-CreateNSG {
         $nsg.SecurityRules.Add($rule1)
         $nsg.SecurityRules.Add($rule2)
         Set-AzNetworkSecurityGroup -NetworkSecurityGroup $nsg -ErrorAction Stop
+
+        $script:createdResources["Isolation-NSG"] = $true
     }
     catch {
         Write-Host "Error: $_"
         Invoke-OutputResources
         exit
     }
-
-    $script:createdResources["Isolation-NSG"] = $true
-
 }
 
 
@@ -365,22 +363,20 @@ function Invoke-AssociateNSGtoSubnet {
 }
 
 
-
 # Create Public IP for Bastion Host
 function Invoke-CreateBastionPIP {
 
     try {
         # Creating the Public IP address and storing it in a script-scoped variable
         $script:BastionPIP = New-AzPublicIpAddress -Name $script:bastionPIPName -ResourceGroupName $script:VMresourceGroupName -Location $script:location -AllocationMethod Static -Sku Standard -ErrorAction Stop
+
+        $script:createdResources["Bastion Public IP address"] = $true
     }
     catch {
         Write-Host "Error: $_"
         Invoke-OutputResources
         exit
     }
-
-    # Updating the created resources tracking hashtable
-    $script:createdResources["Bastion Public IP address"] = $true
 }
 
 
@@ -414,16 +410,15 @@ function Invoke-CreateBastionHost {
 
     try {
         $BastionPIP = Get-AzPublicIpAddress -Name $script:bastionPIPName -ResourceGroupName $script:VMresourceGroupName -ErrorAction Stop
-        $vnet = $script:vnet
-        New-AzBastion -ResourceGroupName $script:VMresourceGroupName -Name $script:bastionName -PublicIpAddress $BastionPIP -VirtualNetwork $vnet -ErrorAction Stop -AsJob
+        New-AzBastion -ResourceGroupName $script:VMresourceGroupName -Name $script:bastionName -PublicIpAddress $BastionPIP -VirtualNetwork $script:vnet -ErrorAction Stop -AsJob
+
+        $script:createdResources["Isolation-Bastion"] = $true
     }
     catch {
         Write-Host "Error: $_"
         Invoke-OutputResources
         exit
     }
-
-    $script:createdResources["Isolation-Bastion"] = $true
 }
 
 
@@ -462,19 +457,19 @@ function Invoke-IsolateVM {
 }
 
 # Run VM isolation function
-# Invoke-IsolateVM
+Invoke-IsolateVM
 
-Invoke-UserLogin
-Invoke-SubscriptionInput
-Invoke-ResourceGroupInput
-Invoke-VMNameInput
-Invoke-VMDetails
-Invoke-IsolationSubnetInput
-Invoke-BastionSubnetInput
-Invoke-CreateSubnets
-Invoke-CreateNSG
-Invoke-AssociateNSGtoSubnet
-Invoke-CreateBastionPIP
-Invoke-MoveVMtoIsolationSubnet
-Invoke-CreateBastionHost
-Invoke-CompletionOutput
+# Invoke-UserLogin
+# Invoke-SubscriptionInput
+# Invoke-ResourceGroupInput
+# Invoke-VMNameInput
+# Invoke-VMDetails
+# Invoke-IsolationSubnetInput
+# Invoke-BastionSubnetInput
+# Invoke-CreateSubnets
+# Invoke-CreateNSG
+# Invoke-AssociateNSGtoSubnet
+# Invoke-CreateBastionPIP
+# Invoke-MoveVMtoIsolationSubnet
+# Invoke-CreateBastionHost
+# Invoke-CompletionOutput
