@@ -446,17 +446,6 @@ function Invoke-CompletionOutput {
 # Main function to run the script
 function Invoke-IsolateVM { 
 
-    param(
-        [string]$AzureTenantId,
-        [string]$AzureClientId,
-        [string]$AzureClientSecret,
-        [string]$subscriptionId,
-        [string]$VMresourceGroupName,
-        [string]$vmName,
-        [string]$subnetRange,
-        [string]$bastionSubnet
-    )
-
     Invoke-UserLogin
     Invoke-SubscriptionInput
     Invoke-ResourceGroupInput
