@@ -307,8 +307,8 @@ function Invoke-CreateSubnets {
 
     try {
         $script:vnet = Get-AzVirtualNetwork -Name $script:vnetname -ResourceGroupName $script:VMresourceGroupName -ErrorAction Stop
-        $isolationSubnetConfig = New-AzVirtualNetworkSubnetConfig -Name $script:isolationSubnetName -AddressPrefix $script:subnetRange -ErrorAction Stop
-        $bastionSubnetConfig = New-AzVirtualNetworkSubnetConfig -Name $script:bastionSubnetName -AddressPrefix $script:bastionSubnet -ErrorAction Stop
+        $isolationSubnetConfig = New-AzVirtualNetworkSubnetConfig -Name $script:isolationSubnetName -AddressPrefix $script:subnetRange -ErrorAction Stop -WarningAction SilentlyContinue
+        $bastionSubnetConfig = New-AzVirtualNetworkSubnetConfig -Name $script:bastionSubnetName -AddressPrefix $script:bastionSubnet -ErrorAction Stop -WarningAction SilentlyContinue
         $script:vnet.Subnets.Add($isolationSubnetConfig)
         $script:vnet.Subnets.Add($bastionSubnetConfig)
         Set-AzVirtualNetwork -VirtualNetwork $script:vnet -ErrorAction Stop
@@ -367,7 +367,7 @@ function Invoke-CreateBastionPIP {
 
     try {
         # Creating the Public IP address and storing it in a script-scoped variable
-        $script:BastionPIP = New-AzPublicIpAddress -Name $script:bastionPIPName -ResourceGroupName $script:VMresourceGroupName -Location $script:location -AllocationMethod Static -Sku Standard -ErrorAction Stop
+        $script:BastionPIP = New-AzPublicIpAddress -Name $script:bastionPIPName -ResourceGroupName $script:VMresourceGroupName -Location $script:location -AllocationMethod Static -Sku Standard -ErrorAction Stop -WarningAction SilentlyContinue
 
         $script:createdResources["Bastion Public IP address"] = $true
     }
